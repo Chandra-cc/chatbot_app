@@ -1,45 +1,77 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
+import { FiSend } from "react-icons/fi"; // Send button icon
+import { HiChatAlt2 } from "react-icons/hi"; // Chat icon for header
 import "./App.css";
 
 function App() {
-    const [messages, setMessages] = useState([]);
+    const [messages, setMessages] = useState([]); // Ensure messages state updates correctly
     const [input, setInput] = useState("");
+    const [loading, setLoading] = useState(false);
+    const chatBoxRef = useRef(null);
 
-    const sendMessage = async () => {
-        if (!input.trim()) return; // Prevent sending empty messages
+    useEffect(() => {
+        // Auto-scroll to latest message
+        if (chatBoxRef.current) {
+            chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
+        }
+    }, [messages]);
 
-        const newMessages = [...messages, { role: "user", content: input }];
-        setMessages(newMessages);
-        setInput(""); // Clear input field after sending
+    const sendMessage = useCallback(async () => {
+        if (!input.trim() || loading) return; // Prevent sending empty messages
+
+        const userMessage = { role: "user", content: input };
+        setMessages(prevMessages => [...prevMessages, userMessage]); // Update state properly
+
+        setInput(""); // Clear input field
+        setLoading(true);
 
         try {
             const response = await axios.post("http://127.0.0.1:5000/chat", { message: input });
-            setMessages([...newMessages, { role: "bot", content: response.data.reply }]);
+            const botMessage = { role: "bot", content: response.data.reply };
+            setMessages(prevMessages => [...prevMessages, botMessage]); // Add bot's reply properly
         } catch (error) {
             console.error("Error:", error);
+            const errorMessage = { role: "bot", content: "Oops! Something went wrong." };
+            setMessages(prevMessages => [...prevMessages, errorMessage]);
         }
-    };
+
+        setLoading(false);
+    }, [input, loading]);
 
     return (
         <div className="chat-container">
-            <h1>Chatbot</h1>
-            <div className="chat-box">
-                {messages.map((msg, index) => (
-                    <p key={index} className={msg.role}>
-                        <strong>{msg.role === "user" ? "You: " : "Bot: "}</strong>
-                        {msg.content}
-                    </p>
-                ))}
+            <div className="chat-header">
+                <HiChatAlt2 size={28} className="chat-icon" />
+                <div>
+                    <h1>FF Assistant V0</h1>
+                    <p>Your AI-powered chatbot</p>
+                </div>
             </div>
-            <input
-                type="text" disabled={false}
-                value={input} // Make sure input is controlled
-                onChange={(e) => setInput(e.target.value)} // Update input state on change
-                placeholder="Type a message..."
-                onKeyPress={(e) => e.key === "Enter" && sendMessage()} // Send on Enter key press
-            />
-            <button onClick={sendMessage}>Send</button>
+            <div className="chat-box" ref={chatBoxRef}>
+                {messages.length === 0 ? (
+                    <p className="no-messages">Start a conversation...</p>
+                ) : (
+                    messages.map((msg, index) => (
+                        <div key={index} className={`message ${msg.role}`}>
+                            <p>{msg.content}</p>
+                        </div>
+                    ))
+                )}
+                {loading && <div className="typing">Bot is typing...</div>}
+            </div>
+            <div className="input-area">
+                <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Type your message..."
+                    onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                />
+                <button onClick={sendMessage} disabled={loading}>
+                    <FiSend size={22} />
+                </button>
+            </div>
         </div>
     );
 }
